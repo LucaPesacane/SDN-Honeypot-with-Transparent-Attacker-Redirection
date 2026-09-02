@@ -33,8 +33,9 @@
 #   valutazione sperimentale.
 #
 # Uso:
-#   sudo python3 topology.py                 # traffico benigno attivo
+#   sudo python3 topology.py                 # traffico e cattura attivi
 #   sudo python3 topology.py --no-traffic    # solo topologia
+#   sudo python3 topology.py --no-capture    # traffico senza cattura
 #
 
 import argparse
@@ -61,13 +62,18 @@ MEAN_RATE = 2.0            # sessioni/s medie per client
 VOIP_BW = '64k'            # flusso CBR tipo G.711
 VOIP_LEN = 60
 
+# --- cattura --------------------------------------------------------------
+PCAP_HONEYPOT = '/tmp/honeypot.pcap'
+PCAP_TRUNK = '/tmp/trunk.pcap'
+TRUNK_IFACE = 's1-eth5'
+
 
 class Environment(object):
 
-    def __init__(self, with_traffic=True):
+    def __init__(self, with_traffic=True, with_capture=True):
         "Create a network."
         self.net = Mininet(controller=RemoteController, link=TCLink)
-        self.procs = []        # processi di traffico avviati con popen
+        self.procs = []        # processi avviati con popen
 
         info("*** Starting controller\n")
         c1 = self.net.addController('c1', controller=RemoteController)
@@ -113,6 +119,8 @@ class Environment(object):
         self.disable_ipv6()
         self.export_portmap()
 
+        if with_capture:
+            self.start_capture()
         if with_traffic:
             self.start_servers()
             self.start_traffic()
@@ -157,6 +165,44 @@ class Environment(object):
             d = port_map[name]
             info("    %-7s %-11s %s  ->  %s porta %d\n"
                  % (name, d['ip'], d['mac'], d['switch'], d['port']))
+
+    # ------------------------------------------------------------------
+    # Cattura del traffico
+    # ------------------------------------------------------------------
+    def start_capture(self):
+        """
+        Cattura sull'honeypot e sul trunk inter-switch.
+
+        La cattura sull'honeypot documenta cosa arriva effettivamente a
+        destinazione dopo la redirezione: e' l'evidenza che giustifica la
+        deviazione rispetto a un semplice drop, il quale non lascerebbe
+        alcuna traccia successiva alla rilevazione. Poiche' nessun host
+        legittimo puo' raggiungere l'honeypot (cfr. regole di containment),
+        ogni pacchetto qui registrato e' per costruzione traffico ostile:
+        il rapporto segnale/rumore e' unitario, a differenza di un IDS
+        posto sul traffico di produzione.
+
+        La cattura sul trunk mostra invece il momento in cui il traffico
+        dirottato compare sul link inter-switch, che in condizioni normali
+        non trasporta traffico fra attaccante e vittima.
+
+        Il flag -U forza la scrittura immediata su disco: senza di esso i
+        pacchetti resterebbero nel buffer e andrebbero persi alla
+        terminazione del processo.
+        """
+        info("*** Starting packet capture\n")
+        p = self.h_pot.popen('tcpdump -i h_pot-eth0 -w %s -U -nn'
+                             % PCAP_HONEYPOT,
+                             stdout=open(os.devnull, 'w'),
+                             stderr=open(os.devnull, 'w'))
+        self.procs.append(p)
+
+        # il trunk appartiene allo switch, quindi vive nel root namespace
+        os.system('tcpdump -i %s -w %s -U -nn > /dev/null 2>&1 &'
+                  % (TRUNK_IFACE, PCAP_TRUNK))
+        time.sleep(1)
+        info("    honeypot -> %s\n" % PCAP_HONEYPOT)
+        info("    trunk    -> %s\n" % PCAP_TRUNK)
 
     # ------------------------------------------------------------------
     # Traffico benigno con iperf
@@ -248,7 +294,7 @@ done
         info("    h_ben3: flusso UDP costante %s\n" % VOIP_BW)
 
     def stop_traffic(self):
-        info("*** Stopping benign traffic\n")
+        info("*** Stopping traffic and capture\n")
         for p in self.procs:
             try:
                 p.terminate()
@@ -256,22 +302,31 @@ done
                 pass
         for host in self.net.hosts:
             host.cmd('pkill -f iperf 2>/dev/null')
+            host.cmd('pkill -f tcpdump 2>/dev/null')
+        os.system('pkill -f "tcpdump -i %s" 2>/dev/null' % TRUNK_IFACE)
+        time.sleep(1)
+        for path in (PCAP_HONEYPOT, PCAP_TRUNK):
+            if os.path.exists(path):
+                info("    %s (%d byte)\n" % (path, os.path.getsize(path)))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Topologia NCIs honeypot SDN')
     parser.add_argument('--no-traffic', action='store_true',
                         help='avvia solo la topologia, senza traffico')
+    parser.add_argument('--no-capture', action='store_true',
+                        help='non avvia la cattura dei pacchetti')
     args = parser.parse_args()
 
     setLogLevel('info')
     info('starting the environment\n')
-    env = Environment(with_traffic=not args.no_traffic)
+    env = Environment(with_traffic=not args.no_traffic,
+                      with_capture=not args.no_capture)
 
     info("*** Running CLI\n")
-    info("    Attacco:  h_att nmap -sS -p 1-1000 10.0.0.100\n")
+    info("    Attacco:  h_att nmap -sS -p 1-6000 10.0.0.100\n")
     info("    Flussi:   sh ovs-ofctl -O OpenFlow13 dump-flows s1\n")
-    info("    Trunk:    sh tcpdump -i s1-eth5 -nn\n\n")
+    info("    Analisi:  (dopo exit) python3 analysis/correlate.py\n\n")
     CLI(env.net)
 
     env.stop_traffic()

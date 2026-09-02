@@ -1,0 +1,2 @@
+{"alert_id": 1, "timestamp": 1788273502.6455407, "datetime": "2026-09-01T16:38:22", "src_ip": "10.0.0.10", "event": "alert", "attack_type": "port_scan", "renewed": false, "threshold": 20, "evidence": {"distinct_dports": 3092, "distinct_dst_ips": 1, "new_flows_per_s": 618.4, "active_flows": 520, "avg_bytes_per_flow": 3.9, "single_pkt_flow_ratio": 0.987}, "action": "redirect_to_honeypot"}
+{"timestamp": 1788273641.1258137, "src_ip": "10.0.0.10", "event": "recovery", "quarantine_duration_s": 138.48, "redirected_packets": 5762, "redirected_bytes": 334376}
