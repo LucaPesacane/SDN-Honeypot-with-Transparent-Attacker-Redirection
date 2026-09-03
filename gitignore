@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Backup e temporanei
+*.bak
+*.orig
+*~
+.*.swp
+
+# Artefatti di esecuzione Mininet
+port_map.json
+*.log
+
+# Catture non selezionate per la consegna
+/tmp/
+*.pcapng
+
+# Sistema
+.DS_Store
+.idea/
+.vscode/

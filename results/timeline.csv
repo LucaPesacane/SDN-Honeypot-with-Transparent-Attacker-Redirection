@@ -1,3 +1,0 @@
-timestamp,datetime,event,src_ip,attack_type,action,evidence_dports,first_pkt_at_honeypot,redirect_latency_s,pkts_from_src_at_honeypot
-1788273502.646,2026-09-01T16:38:22,alert,10.0.0.10,port_scan,redirect_to_honeypot,3092,1788273503.536,0.890,5762
-1788273641.126,,recovery,10.0.0.10,,"quarantine_end (138.5s, 5762 pkt)",,,,
