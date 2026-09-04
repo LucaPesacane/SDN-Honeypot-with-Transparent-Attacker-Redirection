@@ -5,12 +5,6 @@ mediante controller Ryu e switch OpenFlow emulati in Mininet.
 
 ## Avvio
 
-Pulizia di eventuali residui di sessioni precedenti:
-
-```bash
-sudo mn -c
-```
-
 Terminale 1 — controller:
 
 ```bash
@@ -39,13 +33,13 @@ scripts/servers.sh
 
 ## Traffico benigno
 
-Su **h_ben1** e **h_ben2** — sessioni TCP brevi con arrivi di Poisson:
+Su **h_ben1** e **h_ben2** — sessioni TCP:
 
 ```bash
 scripts/client.sh
 ```
 
-Su **h_ben3** — flusso UDP costante:
+Su **h_ben3** — flusso UDP:
 
 ```bash
 scripts/voip.sh
@@ -67,7 +61,10 @@ iperf -c 10.0.0.100 -p 5001 -t 40            # flood TCP
 Regole installate sui due switch, mentre la redirezione è attiva:
 
 ```bash
-scripts/rules.sh
+ovs - ofctl -O OpenFlow13 dump - flows s1
+```
+```bash
+ovs - ofctl -O OpenFlow13 dump - flows s2
 ```
 
 Isolamento dell'honeypot, dalla CLI di Mininet (atteso 20/30):
@@ -87,11 +84,4 @@ Cattura del traffico ai due estremi del percorso:
 ```
 mininet> h_att wireshark -i h_att-eth0 -k &
 mininet> h_pot wireshark -i h_pot-eth0 -k &
-```
-
-## Chiusura
-
-```
-mininet> exit
-sudo mn -c
 ```
